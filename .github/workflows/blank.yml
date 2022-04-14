@@ -39,7 +39,7 @@ jobs:
       - name: Run a one-line script
         run: |
           if [ "${ENV,,}"  == "lower" ]; then
-              echo "env"
+               echo “CUSTOMER_NAME='a'” >> $GITHUB_ENV
           elif [ "${ENV,,}"  == "upper" ]; then
               echo "evn1"
           fi
