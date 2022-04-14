@@ -44,4 +44,4 @@ jobs:
               BucketName='bucket2' >> $GITHUB_ENV
           fi
       - name: Run a two-line script
-        run: echo ${BucketName}
+        run: echo "${BucketName}"
