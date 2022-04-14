@@ -29,8 +29,12 @@ jobs:
     runs-on: ubuntu-latest
     env:
       cond: ${{ target_env }}
-      if_true: Bucket = 'bucket1'  # string value
-      if_false: Bucket = 'bucket2'
+      run:
+          if $target_env == lower; then
+              Bucket = 'bucket1'
+          else
+              Bucket = 'bucket2'
+          fi
       
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
