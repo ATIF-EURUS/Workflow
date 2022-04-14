@@ -39,9 +39,9 @@ jobs:
       - name: Run a one-line script
         run: |
           if [ "${ENV,,}"  == "lower" ]; then
-              BucketName='bucket1' >> $GITHUB_ENV
+              echo "env"
           elif [ "${ENV,,}"  == "upper" ]; then
-              BucketName='bucket2' >> $GITHUB_ENV
+              echo "evn1"
           fi
       - name: Run a two-line script
         run: echo "${BucketName}"
