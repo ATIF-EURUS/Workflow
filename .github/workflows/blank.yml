@@ -16,8 +16,18 @@ on:
       target_env:
         type: choice
         options:
-        - Lower
-        - upper
+        - Lower1
+        - upper2
+      bucket:
+        type: choice
+        options:
+        - bucket1
+        - bucket2
+      ip:
+        type: choice
+        options:
+        - ip1
+        - ip2
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
