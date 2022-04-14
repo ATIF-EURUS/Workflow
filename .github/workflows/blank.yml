@@ -28,13 +28,7 @@ jobs:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
     env:
-      cond: ${{ target_env }}
-      run:
-          if 'lower' == lower1; then
-              Bucket = 'bucket1'
-          else
-              Bucket = 'bucket2'
-          fi
+      Bucket: "${{ github.event.inputs.target_evn }} === 'lower1' ? 'bucket1' : 'bucket2' "
       
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
