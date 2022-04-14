@@ -39,7 +39,7 @@ jobs:
       - name: Run a one-line script
         run: |
           if [ "${ENV,,}"  == "lower" ]; then
-            echo "CUSTOMER_NAME=${{ github.event.inputs.target_env  }}" >> $GITHUB_ENV
+            echo "CUSTOMER_NAME='bucket1'" >> $GITHUB_ENV
           elif [ "${ENV,,}"  == "upper" ]; then
             echo "evn1"
           fi
