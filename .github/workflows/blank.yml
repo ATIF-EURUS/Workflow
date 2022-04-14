@@ -43,7 +43,7 @@ jobs:
 
       # Runs a single command using the runners shell
       - name: Run a one-line script
-        if: ${{github.event.inputs.target_evn}} == "Lower1"
+        if: "contains( ${{github.event.inputs.target_evn}} ,  'Lower1')"
         run: echo Hello, world in Lower!
 
       # Runs a set of commands using the runners shell
