@@ -30,7 +30,7 @@ jobs:
     env:
       cond: ${{ target_env }}
       run:
-          if ${{ target_env }} == lower; then
+          if 'lower' == lower1; then
               Bucket = 'bucket1'
           else
               Bucket = 'bucket2'
