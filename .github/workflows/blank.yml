@@ -36,9 +36,9 @@ jobs:
       # Runs a single command using the runners shell
       - name: Run a one-line script
         run: |
-          if [ "${ENV,,}"  == "lower" ]: then
-            echo “BucketName='bucket1'” >> $GITHUB_ENV
-          elif [ "${ENV,,}"  == "upper" ]: then
-            echo “BucketName='bucket2'” >> $GITHUB_ENV
+          if [ "${ENV,,}"  == "lower" ]; then
+              echo “BucketName='bucket1'” >> $GITHUB_ENV
+          elif [ "${ENV,,}"  == "upper" ]; then
+              echo “BucketName='bucket2'” >> $GITHUB_ENV
           fi
 
