@@ -16,7 +16,7 @@ on:
       target_env:
         type: choice
         options:
-        - Lower1
+        - lower1
         - upper2
 
 
@@ -27,7 +27,7 @@ jobs:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
     env:
-      Bucket: ${{github.event.inputs.target_evn == 'Lower' && 'bucket1' || 'bucket2'}}
+      Bucket: ${{github.event.inputs.target_evn == 'lower' && 'bucket1' || 'bucket2'}}
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
