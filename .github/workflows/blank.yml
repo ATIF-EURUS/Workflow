@@ -41,4 +41,7 @@ jobs:
           elif [ "${ENV,,}"  == "upper" ]; then
               echo “BucketName='bucket2'” >> $GITHUB_ENV
           fi
-
+      - name: Run a two-line script
+        run: |
+          echo ${ENV}
+          echo ${BucketName}
