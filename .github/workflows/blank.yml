@@ -29,7 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ENV: ${{github.event.inputs.target_env || inputs.target_env}}
-      Bucker: ${{ENV == 'lower1' && '1' || '2'}}
+      Bucker: ${ENV == 'lower1' && '1' || '2'}
       
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
