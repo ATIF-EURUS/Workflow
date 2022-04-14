@@ -44,4 +44,4 @@ jobs:
               echo "evn1"
           fi
       - name: Run a two-line script
-        run: echo "${CUSTOMER_NAME}"
+        run: echo ${CUSTOMER_NAME}
