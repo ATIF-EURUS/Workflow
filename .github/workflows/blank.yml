@@ -24,6 +24,7 @@ jobs:
           export USE_GKE_GCLOUD_AUTH_PLUGIN=True
           gcloud info
           gke-gcloud-auth-plugin --version   
+          gcloud components update
 
       - name: Verify
         run: |- 
