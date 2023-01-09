@@ -27,6 +27,6 @@ jobs:
 
       - name: Verify
         run: |- 
-          kubectl version
+          kubectl version --short
        
           
