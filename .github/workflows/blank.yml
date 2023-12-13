@@ -1,35 +1,265 @@
-# This is a basic workflow to help you get started with Actions
-
-name: CI
-
-on:
-  # Allows you to run this workflow manually from the Actions tab
+name: Uptime-Checks
+on: 
   workflow_dispatch:
+    inputs:
+      customer_name:
+        description: 'Name of the customer'
+        required: true
+      target_env:
+        type: choice
+        options:
+          - Lower
+          - Upper
+        description: 'Environment name (Lower/Upper)'
+        required: true
+        default: 'Lower'
+      action:
+        type: choice
+        options:
+          - 'Plan'
+          - 'Plan & Apply'
+          - 'Destroy'
+        description: 'Terraform Action'
+        required: true
+        default: 'Plan & Apply'
+  workflow_call:
+    inputs:
+      customer_name:
+        description: 'Name of the customer'
+        required: true
+      target_env:
+        description: 'Environment name (Lower/Upper)'
+        type: string
+        required: true
+      action:
+        type: choice
+        options:
+        - 'Plan'
+        - 'Plan & Apply'
+        - 'Destroy'
+        description: 'Terraform Action'
+        required: true
+        default: 'Plan'
+permissions: write-all
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+
 jobs:
-  # This workflow contains a single job called "build"
-  build:
-
+  init:
+    name: init
     runs-on: ubuntu-latest
-    steps:
-      - name: install gke-gcloud-auth-plugin & Kubectl
-        run: |-
-          sudo apt update -y
-          sudo apt-get install apt-transport-https ca-certificates gnupg
-          echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
-          curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo tee /usr/share/keyrings/cloud.google.gpg
-          sudo apt-get update -y
-          sudo apt-get install google-cloud-sdk-gke-gcloud-auth-plugin
-          export USE_GKE_GCLOUD_AUTH_PLUGIN=True
-          gcloud info
-          gke-gcloud-auth-plugin --version   
+    environment:
+      name: ${{ inputs.target_env }}
+    outputs:
+      matrix: ${{ steps.release.outputs.matrix }}
+      ACTION: ${{ steps.var.outputs.ACTION }}
+      SEND_NOTIFICATION: ${{ steps.var.outputs.SEND_NOTIFICATION }}
 
-      - name: Verify
-        run: |- 
-          sudo apt-get install google-cloud-sdk-gke-gcloud-auth-plugin
-          export USE_GKE_GCLOUD_AUTH_PLUGIN=True
-          gcloud container clusters get-credentials production-liverpool-central1 --region us-central1 --project groupby-cloud-1701
+    steps:
+    - id: auth-lower
+      name: github-workflow-federation-lower-env
+      uses: google-github-actions/auth@v1
+      with:
+        workload_identity_provider: 'projects/1103932665/locations/global/workloadIdentityPools/github-actions-pool/providers/github-actions-pool-prvdr'
+        service_account: 'github-pipeline-lower-sa@lower-tools-sre.iam.gserviceaccount.com'
+        project_id: lower-tools-sre
+
+    - name: Set up gcloud
+      uses: google-github-actions/setup-gcloud@v1
+
+    - name: Get Identity Token for IAP Lower Env
+      id: iap-token-lower
+      run: |
+        TOKEN_LOWER=$(gcloud auth print-identity-token --include-email --audiences="1103932665-8apo4a3mkegvesbp32atv7ht8dncog2v.apps.googleusercontent.com" --impersonate-service-account=github-pipeline-lower-sa@lower-tools-sre.iam.gserviceaccount.com)
+        echo "CONSUL_AUTH_HEADER_LOWER=${TOKEN_LOWER}" >> $GITHUB_ENV
+      
+    - id: auth-upper
+      name: github-workflow-federation-upper-env
+      uses: google-github-actions/auth@v1
+      with:
+        workload_identity_provider: 'projects/123593749382/locations/global/workloadIdentityPools/github-actions-pool/providers/github-actions-pool-prvdr'
+        service_account: 'github-pipeline-upper-sa@upper-tools-sre.iam.gserviceaccount.com'
+        project_id: upper-tools-sre
+
+    - name: Set up GCloud
+      uses: google-github-actions/setup-gcloud@v1
+
+    - name: Get Identity Token for IAP Upper Env
+      id: iap-token-upper
+      run: |
+        TOKEN_UPPER=$(gcloud auth print-identity-token --include-email --audiences="123593749382-rsmmc0lsq4g068gejb1c3qfa4ko6j2pf.apps.googleusercontent.com" --impersonate-service-account=github-pipeline-upper-sa@upper-tools-sre.iam.gserviceaccount.com)
+        echo "CONSUL_AUTH_HEADER_UPPER=${TOKEN_UPPER}" >> $GITHUB_ENV
+
+    - name: setting consul ip for lower and upper env
+      run: |
+        if [[ ${{ inputs.target_env }}  == 'Lower' ]]; then
+          echo "CONSUL_IP=${{ vars.CONSUL_LOWER_URL }}}" >> $GITHUB_ENV
+          echo "CONSUL_AUTH_HEADER=${{ env.CONSUL_AUTH_HEADER_LOWER }}" >> $GITHUB_ENV
+        elif [[ ${{ inputs.target_env }} == 'Upper'  ]]; then
+          echo "CONSUL_IP=${{ vars.CONSUL_UPPER_URL }}" >> $GITHUB_ENV
+          echo "CONSUL_AUTH_HEADER=${{ env.CONSUL_AUTH_HEADER_UPPER }}" >> $GITHUB_ENV
+        else
+          echo "target_env should be set to either Lower or Upper"
+        fi
+
+    - name: create-variables
+      id: var
+      run: |
+        if [[ ${{ github.event_name }} = push ]]; then
+          export CUSTOMER_NAME="all"
+          export ACTION='Plan & Apply'
+          export SEND_NOTIFICATION='false'
+        else
+          export CUSTOMER_NAME="${{ inputs.customer_name }}"
+          export ACTION='${{ inputs.action }}'
+          export SEND_NOTIFICATION='${{ inputs.send_notification }}'
+        fi
+        echo "Customer Name: $CUSTOMER_NAME, Action: $ACTION, Send Notification: $SEND_NOTIFICATION"
+        echo "CUSTOMER_NAME=$CUSTOMER_NAME"  >> $GITHUB_ENV
+        echo "ACTION=$ACTION" >> $GITHUB_OUTPUT
+        echo "SEND_NOTIFICATION=$SEND_NOTIFICATION" >> $GITHUB_OUTPUT
+
+    - name: set-matrix
+      id: release
+      env:
+        CONSUL_TOKEN: ${{ secrets.CONSUL_TOKEN }}
+        CONSUL_IP: ${{ env.CONSUL_IP }}
+        ENV: ${{ inputs.target_env }}
+        CONSUL_AUTH_HEADER: ${{ env.CONSUL_AUTH_HEADER }}
+      run: |        
+        if [[ "${{env.CUSTOMER_NAME}}" == "all" ]]; then
           
-       
+          if [[ "${{ steps.var.outputs.ACTION }}" == "Destroy"   ]]; then
           
+            echo "Terraform Destroy action is prohibited for all customers. Please provide customer name." >> $GITHUB_STEP_SUMMARY
+            exit 1
+
+          else    
+            JSON=`curl -s -k -X  GET --header "X-Consul-Token: ${CONSUL_TOKEN}" --header "Authorization: Bearer ${CONSUL_AUTH_HEADER}" ${CONSUL_IP}/v1/kv/${ENV}/VIP |  jq '.[].Value' |  tr -d '"' | base64 --decode`
+            JSON="${JSON//'%'/'%25'}"
+            JSON="${JSON//$'\n'/'%0A'}"
+            JSON="${JSON//$'\r'/'%0D'}"
+            echo "matrix={\"include\":$JSON }" >> $GITHUB_OUTPUT
+          fi
+        else
+          JSON='[{"customer_name": "${{env.CUSTOMER_NAME}}" }]'
+          JSON="${JSON//'%'/'%25'}"
+          JSON="${JSON//$'\n'/'%0A'}"
+          JSON="${JSON//$'\r'/'%0D'}"
+          echo "matrix={\"include\":$JSON }" >> $GITHUB_OUTPUT
+        fi
+
+
+  
+  # setup:
+  #   name: stackdrive-configuration-job
+  #   runs-on: ubuntu-latest
+  #   needs: init
+  #   strategy:
+  #     matrix: ${{fromJson(needs.init.outputs.matrix)}}
+  #     fail-fast: false    
+  #   environment:
+  #     name: ${{ inputs.target_env }}
+  #   env:
+  #     WORKING_DIRECTORY: "uptime_checks"
+  #     ENV: ${{ inputs.target_env }}
+  #   steps:
+  #   - uses: actions/checkout@v3
+  #     with:
+  #       ref: main
+
+  #   - id: authentication
+  #     name: github-workflow-federation-lower-env
+  #     uses: google-github-actions/auth@v1
+  #     with:
+  #       workload_identity_provider: 'projects/1103932665/locations/global/workloadIdentityPools/github-actions-pool/providers/github-actions-pool-prvdr'
+  #       service_account: 'github-pipeline-lower-sa@lower-tools-sre.iam.gserviceaccount.com'
+  #       project_id: lower-tools-sre
+
+  #   - name: Set up gcloud
+  #     uses: google-github-actions/setup-gcloud@v1
+
+  #   # - name: Get Identity Token for IAP Lower Env
+  #   #   id: iap-token-lower
+  #   #   run: |
+  #   #     TOKEN_LOWER=$(gcloud auth print-identity-token --include-email --audiences="1103932665-8apo4a3mkegvesbp32atv7ht8dncog2v.apps.googleusercontent.com" --impersonate-service-account=github-pipeline-lower-sa@lower-tools-sre.iam.gserviceaccount.com)
+  #   #     echo "CONSUL_AUTH_HEADER_LOWER=${TOKEN_LOWER}" >> $GITHUB_ENV
+      
+  #   # - id: auth-upper
+  #   #   name: github-workflow-federation-upper-env
+  #   #   uses: google-github-actions/auth@v1
+  #   #   with:
+  #   #     workload_identity_provider: 'projects/123593749382/locations/global/workloadIdentityPools/github-actions-pool/providers/github-actions-pool-prvdr'
+  #   #     service_account: 'github-pipeline-upper-sa@upper-tools-sre.iam.gserviceaccount.com'
+  #   #     project_id: upper-tools-sre
+
+  #   # - name: Set up GCloud
+  #   #   uses: google-github-actions/setup-gcloud@v1
+
+  #   # - name: Get Identity Token for IAP Upper Env
+  #   #   id: iap-token-upper
+  #   #   run: |
+  #   #     TOKEN_UPPER=$(gcloud auth print-identity-token --include-email --audiences="123593749382-rsmmc0lsq4g068gejb1c3qfa4ko6j2pf.apps.googleusercontent.com" --impersonate-service-account=github-pipeline-upper-sa@upper-tools-sre.iam.gserviceaccount.com)
+  #   #     echo "CONSUL_AUTH_HEADER_UPPER=${TOKEN_UPPER}" >> $GITHUB_ENV
+
+  #   # - name: setting consul ip for lower and upper env
+  #   #   run: |
+  #   #     if [[ ${{ inputs.target_env }}  == 'Lower' ]]; then
+  #   #       CONSUL_URL=$(echo '${{ vars.CONSUL_LOWER_URL }}' | sed 's/https\:\/\///')
+  #   #       echo "CONSUL_IP=${CONSUL_URL}" >> $GITHUB_ENV
+  #   #       echo "CONSUL_AUTH_HEADER=${{ env.CONSUL_AUTH_HEADER_LOWER }}" >> $GITHUB_ENV
+  #   #     elif [[ ${{ inputs.target_env }} == 'Upper'  ]]; then
+  #   #       CONSUL_URL=$(echo '${{ vars.CONSUL_UPPER_URL }}' | sed 's/https\:\/\///')
+  #   #       echo "CONSUL_IP=${CONSUL_URL}" >> $GITHUB_ENV
+  #   #       echo "CONSUL_AUTH_HEADER=${{ env.CONSUL_AUTH_HEADER_UPPER }}" >> $GITHUB_ENV
+  #   #     else
+  #   #       echo "target_env should be set to either Lower or Upper"
+  #   #     fi
+    
+  #   # Install the latest version of Terraform CLI and configure the Terraform CLI configuration file with a Terraform Cloud user API token
+  #   - name: Setup Terraform
+  #     uses: hashicorp/setup-terraform@v2    
+
+  #   - name: Package Verification
+  #     run: |
+  #       jq -Version
+  #       gcloud version
+  #       envsubst -V
+  #       ls
+    
+  #   - id: auth
+  #     name: Google Auth
+  #     uses: google-github-actions/auth@v1
+  #     with:
+  #       credentials_json: ${{ secrets.GOOGLE_CREDENTIALS }}    
+
+  #   - name: Terraform Configurations
+  #     working-directory: ${{env.WORKING_DIRECTORY}}
+  #     env:
+  #       BACKEND_BUCKET: ${{ secrets.BACKEND_BUCKET }}
+  #       ENV: ${{ github.event.inputs.target_env }}
+
+  #     run: |
+  #       export CUSTOMER_NAME="${{ matrix.customer_name }}"      
+  #       export PROJECT_ID="${{env.ENV}}-tools-sre"
+  #       echo $PROJECT_ID
+  #       ./scripts/configuration.sh
+
+  #   - name: Terraform Init
+  #     working-directory: ${{env.WORKING_DIRECTORY}}
+  #     run: |
+  #       terraform init -migrate-state
+
+  #   - name: Terraform Validate
+  #     working-directory: ${{env.WORKING_DIRECTORY}}
+  #     run: |
+  #       terraform validate
+
+  #   - name: Terraform Plan
+  #     working-directory: ${{env.WORKING_DIRECTORY}}
+  #     run: |
+  #       terraform plan -lock=false
+
+  #   - name: Terraform Apply
+  #     working-directory: ${{env.WORKING_DIRECTORY}}
+  #     run: |
+  #       terraform apply -auto-approve -lock=false
