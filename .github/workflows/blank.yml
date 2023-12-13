@@ -26,21 +26,14 @@ on:
     inputs:
       customer_name:
         description: 'Name of the customer'
-        type: string
         required: true
       target_env:
         description: 'Environment name (Lower/Upper)'
         type: string
         required: true
       action:
-        type: choice
-        options:
-        - 'Plan'
-        - 'Plan & Apply'
-        - 'Destroy'
-        description: 'Terraform Action'
+        type: string
         required: true
-        default: 'Plan'
 permissions: write-all
 
 
