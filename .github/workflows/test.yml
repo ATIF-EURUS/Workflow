@@ -1,0 +1,23 @@
+name: Trigger pipeline
+on:
+  workflow_dispatch:
+
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+  
+jobs:  
+  trigger:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Dispatch Workflow
+        uses: peter-evans/repository-dispatch@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ATIF-EURUS/terratest
+          event-type: trigger-workflow
+          client-payload: '{"branch": "main"}' 
